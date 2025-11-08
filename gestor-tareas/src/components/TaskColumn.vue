@@ -2,9 +2,10 @@
   <div class="section">
     <h2 :style="{ backgroundColor: background }">{{ title }}</h2>
     <ul>
+
       <li v-if="tasks.length === 0" class="empty">No hay tareas registradas</li>
-      <li v-for="(task, index) in tasks" :key="index">
-        {{ task }}
+      <li v-for="(task, index) in tasks" :key="task.id">
+      {{ task.title }}
         <div class="actions">
           <button @click="$emit('move', { index, direction: -1 })">⬅</button>
           <button @click="$emit('move', { index, direction: 1 })">➡</button>

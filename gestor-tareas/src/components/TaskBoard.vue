@@ -1,46 +1,7 @@
-<template>
-  <div class="task-manager">
-    <h1>Gestor de Tareas</h1>
-
-    <div class="task-input">
-      <input
-        v-model="newTask"
-        placeholder="Escribe aquí tu nueva tarea"
-        @keyup.enter="addTask"
-      />
-      <button @click="addTask">Agregar</button>
-    </div>
-
-    <div v-if="hasTasks" class="task-sections">
-      <TaskColumn
-        title="To Do"
-        color="#ffb347"
-        :tasks="tasks.todo"
-        @remove="removeTask('todo', $event)"
-        @move="moveTask('todo', $event)"
-      />
-      <TaskColumn
-        title="Doing"
-        color="#ffcc33"
-        :tasks="tasks.doing"
-        @remove="removeTask('doing', $event)"
-        @move="moveTask('doing', $event)"
-      />
-      <TaskColumn
-        title="Done"
-        color="#90ee90"
-        :tasks="tasks.done"
-        @move="moveTask('done', $event)"
-      />
-    </div>
-
-    <p v-else class="no-tasks">No hay tareas registradas.</p>
-  </div>
-</template>
-
 <script setup>
-import { ref, reactive, computed } from 'vue'
+import { ref, reactive, computed, onMounted } from 'vue'
 import TaskColumn from './TaskColumn.vue'
+import { fetchTasks, createTask, deleteTask, updateStatus } from '../api.js'
 
 const newTask = ref('')
 const tasks = reactive({
@@ -49,38 +10,63 @@ const tasks = reactive({
   done: []
 })
 
-// ✅ Agregar tarea
-const addTask = () => {
-  const text = newTask.value.trim()
-  if (text !== '') {
-    tasks.todo.push(text)
-    newTask.value = ''
+const loadTasks = async () => {
+  try {
+    const all = await fetchTasks()
+    tasks.todo = all.filter(t => t.status === 'todo')
+    tasks.doing = all.filter(t => t.status === 'doing')
+    tasks.done = all.filter(t => t.status === 'done')
+  } catch (err) {
+    console.error('Error cargando tareas:', err)
   }
 }
 
-// ✅ Eliminar tarea
-const removeTask = (column, index) => {
-  tasks[column].splice(index, 1)
+onMounted(loadTasks)
+
+const addTask = async () => {
+  const text = newTask.value.trim()
+  if (!text) return
+  try {
+    const created = await createTask(text)
+    tasks.todo.push(created)
+    newTask.value = ''
+  } catch (err) {
+    alert('Error creando tarea: ' + err.message)
+  }
 }
 
-// ✅ Mover tarea entre columnas
-const moveTask = (from, { index, direction }) => {
+const removeTask = async (column, index) => {
+  const task = tasks[column][index]
+  try {
+    await deleteTask(task.id)
+    tasks[column].splice(index, 1)
+  } catch (err) {
+    alert('Error eliminando tarea: ' + err.message)
+  }
+}
+
+const moveTask = async (from, { index, direction }) => {
   const columns = ['todo', 'doing', 'done']
   const fromIndex = columns.indexOf(from)
   const toIndex = fromIndex + direction
+  if (toIndex < 0 || toIndex >= columns.length) return
 
-  if (toIndex >= 0 && toIndex < columns.length) {
-    const task = tasks[from][index]
+  const task = tasks[from][index]
+  const newStatus = columns[toIndex]
+  try {
+    await updateStatus(task.id, newStatus)
     tasks[from].splice(index, 1)
-    tasks[columns[toIndex]].push(task)
+    tasks[newStatus].push({ ...task, status: newStatus })
+  } catch (err) {
+    alert('Error moviendo tarea: ' + err.message)
   }
 }
 
-// ✅ Mostrar secciones solo si hay tareas
 const hasTasks = computed(() =>
   tasks.todo.length > 0 || tasks.doing.length > 0 || tasks.done.length > 0
 )
 </script>
+
 
 <style scoped>
 .task-manager {
